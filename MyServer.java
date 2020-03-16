@@ -3,10 +3,106 @@ import java.net.ServerSocket;
 import java.net.Socket;
 import java.util.Random;
 import java.util.Scanner;
+import java.io.File;
+import java.io.IOException; 
+import java.io.FileWriter; 
 
 public class MyServer {
 
+    public static void createDatabase(){
+        try {
+            File myObj = new File("database.txt");
+            if (myObj.createNewFile()) {
+              System.out.println("Database created: " + myObj.getName());
+            } else {
+              System.out.println("Database already exists.");
+            }
+          } catch (IOException e) {
+            System.out.println("An error occurred whilst creating Database.");
+            e.printStackTrace();
+          }
+    }
+
+    public static void writeToDatabase(String tx){
+        try {
+            FileWriter myWriter = new FileWriter("database.txt", true);
+            myWriter.write(tx + "\n");
+            myWriter.close();
+            System.out.println("Successfully wrote to the Database.");
+          } catch (IOException e) {
+            System.out.println("An error occurred whilst writing to the Database.");
+            e.printStackTrace();
+          }
+    }
+
+    public static String searchDatabase(String qry){
+        try{
+            File file=new File("database.txt");    
+            FileReader fr=new FileReader(file);  
+            BufferedReader br=new BufferedReader(fr);  
+            StringBuffer sb=new StringBuffer();    
+
+            String line;  
+            while((line=br.readLine())!=null)  
+            {  
+                String DBEntry = line.substring(line.toString().lastIndexOf(",") + 1).trim().toLowerCase();
+                if(qry.toLowerCase().trim().equals(DBEntry)){
+                    br.close();  
+                    return line;
+                }
+                
+            }  
+                fr.close();  
+                br.close();  
+               
+
+           }  
+            catch(IOException e)  
+            {  
+            e.printStackTrace();  
+            }  
+
+            return "no results found";
+            
+    }
+
+    public static boolean deleteFromDatabase(String lineToRemove){
+        File inputFile = new File("database.txt");
+        File tempFile = new File("temp.txt");
+        Boolean out = false;
+        try{
+        
+        BufferedReader reader = new BufferedReader(new FileReader(inputFile));
+        BufferedWriter writer = new BufferedWriter(new FileWriter(tempFile));
+        
+        String currentLine;
+        
+        while((currentLine = reader.readLine()) != null) {
+            String trimmedLine = currentLine.trim().substring(0, currentLine.trim().lastIndexOf(","));
+            if(trimmedLine.equals(lineToRemove)){
+                
+                out = true;
+                continue;
+            } 
+            writer.write(currentLine + System.getProperty("line.separator"));
+        }
+        writer.close(); 
+        reader.close(); 
+        tempFile.renameTo(inputFile);
+    }  
+        catch(IOException e)  
+        {  
+        e.printStackTrace();  
+        } 
+
+        return out;
+    }
+
+
+
+
     public static void main(String[] args) {
+        createDatabase();
         connectToServer();
     }
 
@@ -20,7 +116,7 @@ public class MyServer {
             Socket connectionSocket = serverSocket.accept();
             System.out.println("Client Connected");
             
-            //Create Input&Outputstreams for the connection
+
             InputStream inputToServer = connectionSocket.getInputStream();
             OutputStream outputFromServer = connectionSocket.getOutputStream();
 
@@ -30,8 +126,6 @@ public class MyServer {
             
             printMenu(serverPrintOut);
 
-            //Have the server take input from the client and echo it back
-            //This should be placed in a loop that listens for a terminator text e.g. bye
             boolean done = false;
             int option = -1;
 
@@ -39,7 +133,11 @@ public class MyServer {
                 
 
                 String line = scanner.nextLine();
-                serverPrintOut.println("Echo: " + line);
+
+                if(line.toLowerCase().trim().equals("")){
+                    option = -1;
+                    printMenu(serverPrintOut);
+                }
 
 
                 //PROCESSING 
@@ -49,38 +147,43 @@ public class MyServer {
                 if(option == 1){
                     System.out.println("Searching for: " + line);
 
+
                     clearClient(serverPrintOut);
                     serverPrintOut.write(27);
                     serverPrintOut.println("[1;0HResults for: " + line + " (Press enter to continue...)");
 
-
-
-                    if(line.toLowerCase().trim().equals(""))
-                        printMenu(serverPrintOut);
+                    serverPrintOut.write(27);
+                    serverPrintOut.println("[3;0H" + searchDatabase(line));
                 }
                 
                 //Insert
                 if(option == 2){
                     System.out.println("Inserting: " + line);
 
+                    writeToDatabase(line);
+
                     clearClient(serverPrintOut);
                     serverPrintOut.write(27);
                     serverPrintOut.println("[1;0HSuccessfully inserted: " + line + " (Press enter to continue...)");
-
-                    if(line.toLowerCase().trim().equals(""))
-                        printMenu(serverPrintOut);
                 }
 
                 //Delete 
                 if(option == 3){
                     System.out.println("Deleting: " + line);
 
-                    clearClient(serverPrintOut);
-                    serverPrintOut.write(27);
-                    serverPrintOut.println("[1;0HSuccessfully inserted: " + line + " (Press enter to continue...)");
+                    if (deleteFromDatabase(line))
+                        {   
+                            clearClient(serverPrintOut);
+                            serverPrintOut.write(27);
+                            serverPrintOut.println("[1;0HSuccessfully deleted: " + line + " (Press enter to continue...)");
+                        } else {
+                            clearClient(serverPrintOut);
+                            serverPrintOut.write(27);
+                            serverPrintOut.println("[1;0HNo entry that matches the date: " + line + " (Press enter to continue...)");
+                        }
 
-                    if(line.toLowerCase().trim().equals(""))
-                        printMenu(serverPrintOut);
+                    
+
                 }
 
 
@@ -133,6 +236,9 @@ public class MyServer {
                 
 
 
+                if(line.toLowerCase().trim().equals("menu")) {
+                    printMenu(serverPrintOut);
+                }
 
                 if(line.toLowerCase().trim().equals("quit")) {
                     System.out.println("Client requested quit");
